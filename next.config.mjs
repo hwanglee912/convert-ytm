@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverComponentsExternalPackages: ["youtubei.js"],
+  },
   images: {
     remotePatterns: [
       {
@@ -16,12 +19,6 @@ const nextConfig = {
         hostname: "**.ggpht.com",
       },
     ],
-  },
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = [...(config.externals || []), "youtubei.js"];
-    }
-    return config;
   },
 };
 

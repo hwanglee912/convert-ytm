@@ -40,6 +40,44 @@ export default function Home() {
   const [previewVideo, setPreviewVideo] = useState<{ id: string; title: string } | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Helper gọi API an toàn, xử lý cả trường hợp server trả về lỗi HTML (500/504)
+  const safeApiCall = async <T,>(url: string, options: RequestInit): Promise<T> => {
+    let res: Response;
+    try {
+      res = await fetch(url, options);
+    } catch (networkErr: any) {
+      throw new Error(`Không thể kết nối đến máy chủ: ${networkErr?.message || "Lỗi mạng"}`);
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await res.text().catch(() => "");
+      if (res.status === 504 || res.status === 408) {
+        throw new Error("Yêu cầu xử lý quá thời gian quy định (Timeout). Hãy thử lại với danh sách ít bài hơn.");
+      }
+      if (res.status === 404) {
+        throw new Error("Không tìm thấy Playlist hoặc Video theo đường dẫn này. Vui lòng kiểm tra lại link.");
+      }
+      if (res.status >= 500) {
+        throw new Error(`Máy chủ gặp sự cố (${res.status}). Vui lòng thử lại sau giây lát.`);
+      }
+      throw new Error(`Phản hồi máy chủ không hợp lệ (${res.status}): ${text.slice(0, 100)}`);
+    }
+
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error("Phản hồi từ máy chủ không phải JSON hợp lệ.");
+    }
+
+    if (!res.ok || (data && data.success === false)) {
+      throw new Error(data?.error || `Lỗi yêu cầu (${res.status})`);
+    }
+
+    return data as T;
+  };
+
   // Xử lý khi người dùng nhập link
   const handleProcessUrl = async (url: string) => {
     setStage("parsing");
@@ -49,16 +87,14 @@ export default function Home() {
 
     try {
       // 1. Phân tích URL để lấy danh sách bài hát
-      const parseRes = await fetch("/api/ytm/parse", {
+      const parseData = await safeApiCall<ParseResponse>("/api/ytm/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
 
-      const parseData: ParseResponse = await parseRes.json();
-
-      if (!parseRes.ok || !parseData.success || !parseData.tracks || parseData.tracks.length === 0) {
-        throw new Error(parseData.error || "Không tìm thấy danh sách bài hát trong URL này");
+      if (!parseData.tracks || parseData.tracks.length === 0) {
+        throw new Error(parseData.error || "Không tìm thấy bài hát nào trong liên kết này. Hãy kiểm tra lại link.");
       }
 
       setMetadata(parseData.metadata || null);
@@ -81,13 +117,11 @@ export default function Home() {
         });
 
         try {
-          const matchRes = await fetch("/api/ytm/match", {
+          const matchData = await safeApiCall<any>("/api/ytm/match", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tracks: chunk }),
           });
-
-          const matchData = await matchRes.json();
 
           if (matchData.success && matchData.results) {
             allMatched.push(...matchData.results);
@@ -129,7 +163,7 @@ export default function Home() {
   };
 
   // Mẫu test từ Ảnh 1 của người dùng
-  const handleUseSampleFromScreenshot = () => {
+  const handleUseSampleFromScreenshot = async () => {
     const sampleTracks: OriginalTrack[] = [
       {
         id: "sample-1",
@@ -171,26 +205,24 @@ export default function Home() {
     });
     setProgress({ current: 0, total: 3 });
 
-    // Gọi API match cho bộ 3 bài này
-    fetch("/api/ytm/match", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tracks: sampleTracks }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.results) {
-          setMatchedTracks(data.results);
-          setProgress({ current: 3, total: 3 });
-          setStage("done");
-        } else {
-          throw new Error("Không thể xử lý bài mẫu");
-        }
-      })
-      .catch((err) => {
-        setErrorMessage(err.message);
-        setStage("error");
+    try {
+      const data = await safeApiCall<any>("/api/ytm/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tracks: sampleTracks }),
       });
+
+      if (data.success && data.results) {
+        setMatchedTracks(data.results);
+        setProgress({ current: 3, total: 3 });
+        setStage("done");
+      } else {
+        throw new Error("Không thể xử lý bài mẫu");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Lỗi xử lý bài mẫu");
+      setStage("error");
+    }
   };
 
   // Cập nhật khi người dùng chọn thủ công 1 bản album khác

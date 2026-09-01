@@ -137,6 +137,12 @@ export function CreatePlaylistModal({
         }),
       });
 
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Máy chủ phản hồi lỗi (${res.status}): ${text.slice(0, 100)}`);
+      }
+
       const data: CreatePlaylistResponse = await res.json();
 
       if (!res.ok || !data.success) {

@@ -63,15 +63,18 @@ export function ExportToolbar({
         body: JSON.stringify({ videoIds }),
       });
 
-      const data = await res.json();
-      if (data.success && data.musicUrl) {
-        window.open(data.musicUrl, "_blank");
-      } else {
-        // Fallback
-        window.open(`https://www.youtube.com/watch_videos?video_ids=${videoIds.join(",")}`, "_blank");
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.success && data.musicUrl) {
+          window.open(data.musicUrl, "_blank");
+          return;
+        }
       }
+      // Fallback
+      window.open(`https://music.youtube.com/watch_videos?video_ids=${videoIds.join(",")}`, "_blank");
     } catch {
-      window.open(`https://www.youtube.com/watch_videos?video_ids=${videoIds.join(",")}`, "_blank");
+      window.open(`https://music.youtube.com/watch_videos?video_ids=${videoIds.join(",")}`, "_blank");
     } finally {
       setIsOpeningYtm(false);
     }

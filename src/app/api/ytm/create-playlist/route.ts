@@ -2,14 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getInnertube } from "@/lib/innertube";
 import { CreatePlaylistRequest, CreatePlaylistResponse } from "@/lib/types";
 
-export const maxDuration = 30;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(
   req: NextRequest
 ): Promise<NextResponse<CreatePlaylistResponse>> {
   try {
-    const body: CreatePlaylistRequest = await req.json();
-    const { title, description, videoIds, cookie } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Dữ liệu không đúng định dạng JSON" },
+        { status: 400 }
+      );
+    }
+    const { title, description, videoIds, cookie } = body || {};
 
     if (!title || !title.trim()) {
       return NextResponse.json(

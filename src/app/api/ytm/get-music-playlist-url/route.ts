@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { videoIds } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Dữ liệu không đúng định dạng JSON" },
+        { status: 400 }
+      );
+    }
+    const { videoIds } = body || {};
 
     if (!videoIds || !Array.isArray(videoIds) || videoIds.length === 0) {
       return NextResponse.json(

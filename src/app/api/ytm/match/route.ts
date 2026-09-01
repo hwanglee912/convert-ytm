@@ -3,14 +3,24 @@ import { getInnertube } from "@/lib/innertube";
 import { matchSingleTrack } from "@/lib/matcher";
 import { BatchMatchResponse, OriginalTrack } from "@/lib/types";
 
-export const maxDuration = 30; // Max duration for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Max duration for Vercel serverless
 
 export async function POST(
   req: NextRequest
 ): Promise<NextResponse<BatchMatchResponse>> {
   try {
-    const body = await req.json();
-    const tracks: OriginalTrack[] = body.tracks;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, results: [], error: "Dữ liệu không đúng định dạng JSON" },
+        { status: 400 }
+      );
+    }
+    const tracks: OriginalTrack[] = body?.tracks;
 
     if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
       return NextResponse.json(
